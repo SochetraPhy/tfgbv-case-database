@@ -1,0 +1,49 @@
+# Secrets and configuration
+.env
+
+# Runtime directories
+uploads/
+extensions/
+templates/
+
+# Case data may contain survivor and perpetrator PII — never commit it.
+# These rules are a safety net, not a policy: keep case data outside the repository.
+*.xlsx
+*.xlsm
+*.xls
+*.ods
+*.csv
+*.tsv
+data/
+
+# Database dumps, backups, and exports — a dump contains all PII in plaintext
+*.sql
+!scripts/migrations.sql
+*.dump
+*.bak
+*.backup
+backup*
+*.zip
+*.tar
+*.tar.gz
+
+# Screenshots and documents can contain PII
+*.png
+*.jpg
+*.jpeg
+*.pdf
+
+# JSON is Directus's export format, so a collection dump lands here by default.
+# If the project ever needs a tracked .json, add a negation below it.
+*.json
+
+# Generated locally
+docs/demo_manifest.json
+
+# Editor and OS artefacts
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.idea/
+.vscode/
