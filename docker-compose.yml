@@ -1,0 +1,91 @@
+services:
+  database:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: odc-directus-db
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  cache:
+    image: redis:7-alpine
+    container_name: odc-directus-cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  directus:
+    image: directus/directus:11
+    container_name: odc-directus
+    restart: unless-stopped
+    ports:
+      - "8055:8055"
+    volumes:
+      - ./uploads:/directus/uploads
+      - ./extensions:/directus/extensions
+      - ./templates:/directus/templates
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    environment:
+      SECRET: ${SECRET}
+      PUBLIC_URL: ${PUBLIC_URL}
+
+      DB_CLIENT: pg
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      CACHE_ENABLED: "true"
+      CACHE_AUTO_PURGE: "true"
+      CACHE_STORE: redis
+      REDIS: redis://cache:6379
+
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+
+      WEBSOCKETS_ENABLED: "true"
+      TELEMETRY: "false"
+    healthcheck:
+      # /server/ping, not /server/health: the health endpoint's storage probe fails on
+      # macOS Docker Desktop bind mounts (errno -35 opening its own probe file) even
+      # though real uploads succeed, which would leave this permanently unhealthy.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8055/server/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # Revokes expired PII access grants. Runs with admin credentials by necessity —
+  # see the security note in scripts/pii_access_sync.py.
+  pii-access-sync:
+    build:
+      context: .
+      dockerfile: docker/pii-sync.Dockerfile
+    container_name: odc-directus-pii-sync
+    restart: unless-stopped
+    depends_on:
+      directus:
+        condition: service_healthy
+    environment:
+      DIRECTUS_URL: http://directus:8055
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+
+volumes:
+  db_data:
